@@ -41,6 +41,11 @@ public class XRHandBindGrabPose : MonoBehaviour
 
     public void BindGrabPose(SelectEnterEventArgs args)
     {
+        if (args.interactorObject is UnityEngine.XR.Interaction.Toolkit.Interactors.XRSocketInteractor)
+        {
+            // Ignore sockets (we don’t want to animate the hand pose)
+            return;
+        }
         // Ensure the interactor object is valid and get its transform
         Transform interactorTransform = args.interactorObject.transform;
         if (interactorTransform == null)
