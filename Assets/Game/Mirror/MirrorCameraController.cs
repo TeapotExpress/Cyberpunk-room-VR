@@ -4,179 +4,282 @@ using UnityEngine.XR;
 [ExecuteAlways]
 public class MirrorCameraController : MonoBehaviour
 {
+    [Header("Source")]
     public Camera playerCamera;
-    public Camera mirrorCamera;
 
-    [Tooltip("Assigned RenderTexture used by the mirror camera")]
-    public RenderTexture mirrorRenderTexture;
+    [Header("Mirror Cameras")]
+    public Camera leftMirrorCamera;
+    public Camera rightMirrorCamera;
 
-    [Range(0.1f, 1.0f)]
-    public float renderScale = 1.0f;
+    [Header("Render Textures")]
+    public RenderTexture leftMirrorRenderTexture;
+    public RenderTexture rightMirrorRenderTexture;
 
-    [Tooltip("Stereo reflection offset compensation (0 = no shift, 0.5 = fully correct for left eye)")]
-    [Range(0f, 0.5f)]
-    public float stereoCompensation = 0.25f;
+    [Header("Mirror Material")]
+    public Material mirrorMaterial;
+    public string leftTextureProperty = "_LeftTex";
+    public string rightTextureProperty = "_RightTex";
 
-    [Tooltip("Extra clipping offset (in meters) beyond the mirror plane")]
-    [Range(0f, 0.1f)]  // Adjust max as needed (e.g., 10cm = 0.1m)
+    [Header("Quality")]
+    [Range(0.1f, 1f)]
+    public float renderScale = 1f;
+
+    [Header("Clipping")]
+    [Range(0f, 0.1f)]
     public float clippingOffset = 0.02f;
 
-    private void Awake()
-    {
-        // Reserved for future setup, if needed
-    }
+    [Header("Debug")]
+    public bool swapEyes = false;
+    public bool renderInEditor = true;
 
-    private void Start()
-    {
-        // One-time setup for mirror camera properties
-        ResizeRenderTexture();
-
-        if (mirrorCamera != null && playerCamera != null)
-        {
-            mirrorCamera.fieldOfView = playerCamera.fieldOfView;
-            mirrorCamera.nearClipPlane = playerCamera.nearClipPlane;
-            mirrorCamera.farClipPlane = playerCamera.farClipPlane;
-
-            mirrorCamera.stereoTargetEye = StereoTargetEyeMask.Both;
-        }
-    }
+    private bool isRendering;
 
     private void OnEnable()
     {
-        Application.onBeforeRender += UpdateMirrorCamera;
+        Application.onBeforeRender += RenderMirror;
+        Setup();
     }
 
     private void OnDisable()
     {
-        Application.onBeforeRender -= UpdateMirrorCamera;
+        Application.onBeforeRender -= RenderMirror;
     }
 
-    private void UpdateMirrorCamera()
+    private void LateUpdate()
     {
-        if (playerCamera == null || mirrorCamera == null)
+        if (!Application.isPlaying && renderInEditor)
+            RenderMirror();
+    }
+
+    private void Setup()
+    {
+        if (!playerCamera)
             return;
 
-        // Mirror plane
-        Transform mirrorTransform = transform;
-        Vector3 mirrorPos = mirrorTransform.position;
-        Vector3 mirrorNormal = mirrorTransform.forward;
+        ResizeRenderTextures();
 
-        // XR center eye or fallback
-        Vector3 worldEyeCenter;
+        SetupMirrorCamera(leftMirrorCamera, leftMirrorRenderTexture);
+        SetupMirrorCamera(rightMirrorCamera, rightMirrorRenderTexture);
 
-        if (XRSettings.isDeviceActive && Application.isPlaying)
-        {
-            Vector3 localCenterEye = InputTracking.GetLocalPosition(XRNode.CenterEye);
-            worldEyeCenter = (playerCamera.transform.parent != null)
-                ? playerCamera.transform.parent.TransformPoint(localCenterEye)
-                : playerCamera.transform.position;
-        }
-        else
-        {
-            worldEyeCenter = playerCamera.transform.position;
-        }
-
-        // Reflect position
-        Vector3 camToMirror = worldEyeCenter - mirrorPos;
-        Vector3 reflectedPos = worldEyeCenter - 2f * Vector3.Dot(camToMirror, mirrorNormal) * mirrorNormal;
-
-        // Stereo compensation offset
-        if (XRSettings.isDeviceActive && Application.isPlaying)
-        {
-            float ipd = Vector3.Distance(
-                InputTracking.GetLocalPosition(XRNode.LeftEye),
-                InputTracking.GetLocalPosition(XRNode.RightEye)
-            );
-
-            reflectedPos -= mirrorCamera.transform.right * (ipd * stereoCompensation);
-        }
-
-        // Reflect forward and up
-        Vector3 reflectedForward = Vector3.Reflect(playerCamera.transform.forward, mirrorNormal);
-        Vector3 reflectedUp = Vector3.Reflect(playerCamera.transform.up, mirrorNormal);
-        Quaternion reflectedRotation = Quaternion.LookRotation(reflectedForward, reflectedUp);
-
-        float originalRoll = playerCamera.transform.eulerAngles.z;
-        float invertedRoll = -NormalizeAngle(originalRoll);
-        Vector3 reflectedEuler = reflectedRotation.eulerAngles;
-        reflectedEuler.z = invertedRoll;
-
-        mirrorCamera.transform.SetPositionAndRotation(reflectedPos, Quaternion.Euler(reflectedEuler));
-
-        // Projection matrix (must be updated every frame in VR)
-        if (XRSettings.isDeviceActive && Application.isPlaying)
-        {
-            mirrorCamera.projectionMatrix = playerCamera.GetStereoProjectionMatrix(Camera.StereoscopicEye.Left);
-        }
-        else
-        {
-            mirrorCamera.ResetProjectionMatrix();
-        }
-
-        // Oblique near-plane clipping with offset
-        if (Application.isPlaying)
-        {
-            ApplyObliqueClipping(mirrorCamera, mirrorNormal, mirrorPos + mirrorNormal * clippingOffset);
-        }
+        AssignTextures();
     }
 
-    private void ResizeRenderTexture()
+    private void SetupMirrorCamera(Camera cam, RenderTexture rt)
     {
-        if (mirrorRenderTexture == null)
+        if (!cam || !playerCamera)
             return;
 
-        int baseWidth = XRSettings.isDeviceActive && Application.isPlaying
-            ? XRSettings.eyeTextureWidth
-            : Screen.width;
+        cam.enabled = false;
+        cam.targetTexture = rt;
 
-        int baseHeight = XRSettings.isDeviceActive && Application.isPlaying
-            ? XRSettings.eyeTextureHeight
-            : Screen.height;
+        cam.clearFlags = playerCamera.clearFlags;
+        cam.backgroundColor = playerCamera.backgroundColor;
+        cam.nearClipPlane = playerCamera.nearClipPlane;
+        cam.farClipPlane = playerCamera.farClipPlane;
+        cam.useOcclusionCulling = false;
+    }
 
-        int width = Mathf.RoundToInt(baseWidth * renderScale);
-        int height = Mathf.RoundToInt(baseHeight * renderScale);
+    private void RenderMirror()
+    {
+        if (isRendering)
+            return;
 
-        width = Mathf.Max(1, width);
-        height = Mathf.Max(1, height);
+        if (!playerCamera || !leftMirrorCamera || !rightMirrorCamera)
+            return;
 
-        if (mirrorRenderTexture.width != width || mirrorRenderTexture.height != height)
+        isRendering = true;
+
+        try
         {
-            mirrorRenderTexture.Release();
-            mirrorRenderTexture.width = width;
-            mirrorRenderTexture.height = height;
-            mirrorRenderTexture.Create();
+            Setup();
+
+            bool xr = Application.isPlaying && XRSettings.isDeviceActive;
+
+            if (xr)
+            {
+                if (!swapEyes)
+                {
+                    RenderEye(Camera.StereoscopicEye.Left, XRNode.LeftEye, leftMirrorCamera, leftMirrorRenderTexture);
+                    RenderEye(Camera.StereoscopicEye.Right, XRNode.RightEye, rightMirrorCamera, rightMirrorRenderTexture);
+                }
+                else
+                {
+                    RenderEye(Camera.StereoscopicEye.Right, XRNode.RightEye, leftMirrorCamera, leftMirrorRenderTexture);
+                    RenderEye(Camera.StereoscopicEye.Left, XRNode.LeftEye, rightMirrorCamera, rightMirrorRenderTexture);
+                }
+            }
+            else
+            {
+                RenderMono(leftMirrorCamera, leftMirrorRenderTexture);
+
+                if (leftMirrorRenderTexture && rightMirrorRenderTexture)
+                    Graphics.Blit(leftMirrorRenderTexture, rightMirrorRenderTexture);
+            }
+        }
+        finally
+        {
+            isRendering = false;
         }
     }
 
-    private void ApplyObliqueClipping(Camera cam, Vector3 planeNormal, Vector3 planePoint)
+    private void RenderMono(Camera mirrorCam, RenderTexture target)
     {
-        Plane clipPlane = new Plane(planeNormal, planePoint);
+        Pose sourcePose = new Pose(
+            playerCamera.transform.position,
+            playerCamera.transform.rotation
+        );
+
+        RenderReflected(mirrorCam, target, sourcePose, playerCamera.projectionMatrix);
+    }
+
+    private void RenderEye(
+        Camera.StereoscopicEye eye,
+        XRNode node,
+        Camera mirrorCam,
+        RenderTexture target
+    )
+    {
+        Vector3 localEyePosition = InputTracking.GetLocalPosition(node);
+
+        Transform xrRoot = playerCamera.transform.parent;
+
+        Vector3 worldEyePosition = xrRoot
+            ? xrRoot.TransformPoint(localEyePosition)
+            : playerCamera.transform.TransformPoint(localEyePosition);
+
+        Pose sourcePose = new Pose(
+            worldEyePosition,
+            playerCamera.transform.rotation
+        );
+
+        RenderReflected(
+            mirrorCam,
+            target,
+            sourcePose,
+            playerCamera.GetStereoProjectionMatrix(eye)
+        );
+    }
+
+    private void RenderReflected(
+        Camera mirrorCam,
+        RenderTexture target,
+        Pose sourcePose,
+        Matrix4x4 projection
+    )
+    {
+        if (!mirrorCam || !target)
+            return;
+
+        Vector3 mirrorPosition = transform.position;
+        Vector3 mirrorNormal = transform.forward.normalized;
+
+        Vector3 reflectedPosition = ReflectPoint(
+            sourcePose.position,
+            mirrorPosition,
+            mirrorNormal
+        );
+
+        Vector3 reflectedForward = Vector3.Reflect(
+            sourcePose.rotation * Vector3.forward,
+            mirrorNormal
+        );
+
+        Vector3 reflectedUp = Vector3.Reflect(
+            sourcePose.rotation * Vector3.up,
+            mirrorNormal
+        );
+
+        Quaternion reflectedRotation = Quaternion.LookRotation(
+            reflectedForward,
+            reflectedUp
+        );
+
+        mirrorCam.transform.SetPositionAndRotation(
+            reflectedPosition,
+            reflectedRotation
+        );
+
+        mirrorCam.targetTexture = target;
+        mirrorCam.projectionMatrix = projection;
+
+        ApplyObliqueClipping(
+            mirrorCam,
+            mirrorNormal,
+            mirrorPosition + mirrorNormal * clippingOffset
+        );
+
+        mirrorCam.Render();
+
+        mirrorCam.ResetProjectionMatrix();
+    }
+
+    private static Vector3 ReflectPoint(
+        Vector3 point,
+        Vector3 planePoint,
+        Vector3 planeNormal
+    )
+    {
+        return point - 2f * Vector3.Dot(point - planePoint, planeNormal) * planeNormal;
+    }
+
+    private void ApplyObliqueClipping(
+        Camera cam,
+        Vector3 planeNormal,
+        Vector3 planePoint
+    )
+    {
         Vector4 clipPlaneWorld = new Vector4(
-            clipPlane.normal.x, clipPlane.normal.y, clipPlane.normal.z,
-            -Vector3.Dot(clipPlane.normal, planePoint)
+            planeNormal.x,
+            planeNormal.y,
+            planeNormal.z,
+            -Vector3.Dot(planeNormal, planePoint)
         );
 
         Matrix4x4 viewMatrix = cam.worldToCameraMatrix;
-        Vector4 clipPlaneCameraSpace = Matrix4x4.Transpose(Matrix4x4.Inverse(viewMatrix)) * clipPlaneWorld;
 
-        cam.projectionMatrix = cam.CalculateObliqueMatrix(clipPlaneCameraSpace);
+        Vector4 clipPlaneCamera =
+            Matrix4x4.Transpose(Matrix4x4.Inverse(viewMatrix)) * clipPlaneWorld;
+
+        cam.projectionMatrix = cam.CalculateObliqueMatrix(clipPlaneCamera);
     }
 
-    private float NormalizeAngle(float angle)
+    private void ResizeRenderTextures()
     {
-        angle %= 360f;
-        if (angle > 180f)
-            angle -= 360f;
-        return angle;
+        ResizeRenderTexture(leftMirrorRenderTexture);
+        ResizeRenderTexture(rightMirrorRenderTexture);
     }
 
-    public void DebugSlider(float _stereoCompensation)
+    private void ResizeRenderTexture(RenderTexture rt)
     {
-        stereoCompensation = _stereoCompensation;
+        if (!rt)
+            return;
+
+        int baseWidth = Application.isPlaying && XRSettings.isDeviceActive
+            ? XRSettings.eyeTextureWidth
+            : Screen.width;
+
+        int baseHeight = Application.isPlaying && XRSettings.isDeviceActive
+            ? XRSettings.eyeTextureHeight
+            : Screen.height;
+
+        int width = Mathf.Max(1, Mathf.RoundToInt(baseWidth * renderScale));
+        int height = Mathf.Max(1, Mathf.RoundToInt(baseHeight * renderScale));
+
+        if (rt.width == width && rt.height == height)
+            return;
+
+        rt.Release();
+        rt.width = width;
+        rt.height = height;
+        rt.Create();
     }
 
-    public void DebugClipSlider(float _clippingOffset)
+    private void AssignTextures()
     {
-        clippingOffset = _clippingOffset;
+        if (!mirrorMaterial)
+            return;
+
+        mirrorMaterial.SetTexture(leftTextureProperty, leftMirrorRenderTexture);
+        mirrorMaterial.SetTexture(rightTextureProperty, rightMirrorRenderTexture);
     }
 }
