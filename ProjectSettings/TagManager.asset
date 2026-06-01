@@ -33,9 +33,9 @@ TagManager:
   - 
   - 
   - 
-  - 
-  - Sling
-  - SlingProjectile
+  - Crosshair
+  - BowWeapon
+  - Projectile
   - StringGrabPoint
   - 
   m_SortingLayers:
