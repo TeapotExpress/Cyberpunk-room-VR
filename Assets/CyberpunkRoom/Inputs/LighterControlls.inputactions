@@ -1,0 +1,55 @@
+{
+    "version": 1,
+    "name": "LighterControlls",
+    "maps": [
+        {
+            "name": "Lighter",
+            "id": "8b201ed7-217f-4173-9310-4d108749cb85",
+            "actions": [
+                {
+                    "name": "IgniteLeft",
+                    "type": "Button",
+                    "id": "c838c598-857d-40ba-9695-6c1cc800f892",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "IgniteRight",
+                    "type": "Button",
+                    "id": "9450a8ba-8453-4d09-b02e-b163b87ba9d8",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "2ef50e0e-1515-4ef2-b9b6-beaf0c7b334a",
+                    "path": "<XRController>{LeftHand}/{PrimaryButton}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "IgniteLeft",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "7f286aec-5e91-41fc-81ba-cc0ef75c6076",
+                    "path": "<XRController>{RightHand}/{PrimaryButton}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "IgniteRight",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}
