@@ -38,6 +38,7 @@ public class LighterVisual : MonoBehaviour
     private bool _isFlame;
     private LighterState _state = LighterState.Closed;
 
+    public bool IsLit => _isFlame;
     // Ignite action bound to whichever hand currently holds the lighter.
     private InputActionReference _activeIgnite;
 

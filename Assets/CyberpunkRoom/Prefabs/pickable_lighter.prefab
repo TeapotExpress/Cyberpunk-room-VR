@@ -11,6 +11,8 @@ GameObject:
   - component: {fileID: 1864673848894800837}
   - component: {fileID: 6744864717680376350}
   - component: {fileID: 1129552245297793043}
+  - component: {fileID: 1121567915519313392}
+  - component: {fileID: 4861783668961147806}
   m_Layer: 0
   m_Name: Flame
   m_TagString: Untagged
@@ -86,6 +88,41 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &1121567915519313392
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 830048722748829892}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5c891193b9454dba891b82e345af6e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lighter: {fileID: 6609335848844094715}
+  igniteDwell: 0.35
+--- !u!65 &4861783668961147806
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 830048722748829892}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 9.7870035, y: 3.8791013, z: 4.9541855}
+  m_Center: {x: 0.20428357, y: 1.4395503, z: -0.11196216}
 --- !u!1 &1063703800311215193
 GameObject:
   m_ObjectHideFlags: 0
